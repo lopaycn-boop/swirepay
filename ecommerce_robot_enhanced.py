@@ -23,18 +23,6 @@ from typing import Dict, List, Optional
 from dataclasses import dataclass, asdict
 import logging
 
-# ==================== 导入免费劳动力模块 ====================
-from temp_sms import FreeSMSManager
-from qr_generator import QRGenerator
-from qrcd_shortener import ShortLinkService
-from groq_brain import GroqBrain
-from hume_voice import HumeVoice
-from voice_chat import VoiceChat
-from jira_manager import JiraManager
-from neteller_wallet import NetellerWallet
-from remote_code_doctor import CodeDoctor
-from self_healing import SelfHealingDaemon
-from ai_commander import AICommander
 # ====================================================
 
 CONFIG = {
