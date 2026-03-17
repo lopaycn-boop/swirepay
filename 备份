@@ -1,0 +1,1065 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+🥔 小土豆电商分身 · 全能增强版
+功能：电商交易 + 网络爬虫 + 自主部署 + 远程操控 + 社交自动化 + 神石记忆 + 免费劳动力
+作者：小土豆 (为爸爸定制)
+版本：3.3 (集成所有免费劳动力)
+"""
+
+import os
+import sys
+import json
+import time
+import random
+import hashlib
+import base64
+import requests
+import threading
+import subprocess
+import re
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional
+from dataclasses import dataclass, asdict
+import logging
+
+# ==================== 导入免费劳动力模块 ====================
+from temp_sms import FreeSMSManager
+from qr_generator import QRGenerator
+from qrcd_shortener import ShortLinkService
+from groq_brain import GroqBrain
+from hume_voice import HumeVoice
+from voice_chat import VoiceChat
+from jira_manager import JiraManager
+from neteller_wallet import NetellerWallet
+from remote_code_doctor import CodeDoctor
+from self_healing import SelfHealingDaemon
+from ai_commander import AICommander
+# ====================================================
+
+CONFIG = {
+    "pay9_api_url": os.environ.get("PAY9_API_URL", "https://api.pay9.io/v1"),
+    "pay9_api_key": os.environ.get("PAY9_API_KEY", ""),
+    "pay9_api_secret": os.environ.get("PAY9_API_SECRET", ""),
+    
+    "tg_bot_token": os.environ.get("TG_BOT_TOKEN", ""),
+    "tg_chat_id": os.environ.get("TG_CHAT_ID", ""),
+    
+    "clawcloud_api_key": os.environ.get("CLAWCLOUD_API_KEY", ""),
+    "clawcloud_api_url": os.environ.get("CLAWCLOUD_API_URL", "https://api.run.claw.cloud/v1"),
+    
+    "xiaotudou_auth_key": os.environ.get("XIAOTUDOU_AUTH_KEY", ""),
+    
+    "shenshi_file": "./shenshi_ecommerce.json",
+    "data_dir": "./data",
+    
+    "large_amount_threshold": 10000,
+    
+    "scraper": {
+        "user_agents": [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15",
+            "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15",
+        ],
+        "min_delay": 1,
+        "max_delay": 3,
+        "max_retries": 3
+    }
+}
+
+# ==================== 数据结构 ====================
+
+@dataclass
+class Order:
+    order_id: str
+    amount: float
+    currency: str
+    channel: str
+    buyer_name: str
+    buyer_id: str
+    items: List[Dict]
+    status: str
+    created_at: str
+    paid_at: Optional[str] = None
+    risk_score: float = 0.0
+
+@dataclass
+class ScrapedData:
+    url: str
+    title: str
+    content: str
+    data: Dict
+    created_at: str
+
+# ==================== 神石记忆系统 ====================
+
+class ShenshiMemory:
+    def __init__(self):
+        self.file = CONFIG["shenshi_file"]
+        self.data_dir = CONFIG["data_dir"]
+        os.makedirs(self.data_dir, exist_ok=True)
+        self.memory = self._load()
+        self._ensure_structure()
+    
+    def _load(self) -> Dict:
+        if os.path.exists(self.file):
+            try:
+                with open(self.file, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            except Exception:
+                return {}
+        return {}
+    
+    def _save(self):
+        with open(self.file, 'w', encoding='utf-8') as f:
+            json.dump(self.memory, f, indent=2, ensure_ascii=False)
+    
+    def _ensure_structure(self):
+        if "orders" not in self.memory:
+            self.memory["orders"] = []
+        if "scraped_data" not in self.memory:
+            self.memory["scraped_data"] = []
+        if "deployments" not in self.memory:
+            self.memory["deployments"] = []
+        if "social_accounts" not in self.memory:
+            self.memory["social_accounts"] = []
+        if "chats" not in self.memory:
+            self.memory["chats"] = []
+        if "facts" not in self.memory:
+            self.memory["facts"] = {"爸爸的名字": "自由的风"}
+        if "stats" not in self.memory:
+            self.memory["stats"] = {
+                "total_orders": 0,
+                "total_scrapes": 0,
+                "total_deploys": 0,
+                "total_chats": 0,
+                "first_seen": datetime.now().isoformat()
+            }
+        self._save()
+    
+    def add_order(self, order: Order):
+        self.memory["orders"].append(asdict(order))
+        self.memory["stats"]["total_orders"] += 1
+        self._save()
+    
+    def add_scraped_data(self, data: ScrapedData):
+        self.memory["scraped_data"].append(asdict(data))
+        self.memory["stats"]["total_scrapes"] += 1
+        self._save()
+    
+    def add_deployment(self, target: str, config: Dict, result: Dict):
+        self.memory["deployments"].append({
+            "time": datetime.now().isoformat(),
+            "target": target,
+            "config": config,
+            "result": result
+        })
+        self.memory["stats"]["total_deploys"] += 1
+        self._save()
+    
+    def add_social_account(self, platform: str, account_info: Dict):
+        self.memory["social_accounts"].append({
+            "time": datetime.now().isoformat(),
+            "platform": platform,
+            "account": account_info
+        })
+        self._save()
+    
+    def add_chat(self, user_msg: str, bot_reply: str):
+        self.memory["chats"].append({
+            "time": datetime.now().isoformat(),
+            "user": user_msg,
+            "bot": bot_reply
+        })
+        self.memory["stats"]["total_chats"] += 1
+        if len(self.memory["chats"]) > 100:
+            self.memory["chats"] = self.memory["chats"][-100:]
+        self._save()
+    
+    def add_fact(self, key: str, value: str):
+        self.memory["facts"][key] = value
+        self._save()
+    
+    def get_fact(self, key: str) -> str:
+        return self.memory["facts"].get(key, "自由的风")
+    
+    def save_file(self, filename: str, content: str) -> str:
+        filepath = os.path.join(self.data_dir, filename)
+        with open(filepath, 'w', encoding='utf-8') as f:
+            f.write(content)
+        return filepath
+
+
+# ==================== 电商交易模块 ====================
+
+class EcommerceModule:
+    def __init__(self, shenshi: ShenshiMemory):
+        self.shenshi = shenshi
+        self.api_base = CONFIG["pay9_api_url"]
+        self.api_key = CONFIG["pay9_api_key"]
+        self.api_secret = CONFIG["pay9_api_secret"]
+    
+    def _sign_request(self, method: str, path: str, body: str = "", timestamp: int = None) -> str:
+        timestamp = timestamp or int(time.time() * 1000)
+        message = f"{method}\n{path}\n{timestamp}\n{body}"
+        return hashlib.sha256(f"{message}{self.api_secret}".encode()).hexdigest()
+    
+    def _api_call(self, method: str, endpoint: str, data: Dict = None) -> Dict:
+        if not self.api_key or not self.api_secret:
+            return {"success": False, "error": "API密钥未配置"}
+        
+        url = f"{self.api_base}{endpoint}"
+        timestamp = int(time.time() * 1000)
+        body = json.dumps(data) if data else ""
+        
+        headers = {
+            "X-API-Key": self.api_key,
+            "X-Timestamp": str(timestamp),
+            "X-Signature": self._sign_request(method, endpoint, body, timestamp),
+            "Content-Type": "application/json"
+        }
+        
+        try:
+            if method.upper() == "GET":
+                resp = requests.get(url, params=data, headers=headers, timeout=30)
+            else:
+                resp = requests.post(url, json=data, headers=headers, timeout=30)
+            resp.raise_for_status()
+            return resp.json()
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+    
+    def create_order(self, buyer_name: str, buyer_id: str, items: List[Dict], channel: str) -> Order:
+        total = sum(item.get("price", 0) * item.get("quantity", 1) for item in items)
+        currency = items[0].get("currency", "USD") if items else "USD"
+        
+        order = Order(
+            order_id=f"ORD{int(time.time())}{random.randint(1000,9999)}",
+            amount=total,
+            currency=currency,
+            channel=channel,
+            buyer_name=buyer_name,
+            buyer_id=buyer_id,
+            items=items,
+            status="pending",
+            created_at=datetime.now().isoformat(),
+            risk_score=0.1 if total < CONFIG["large_amount_threshold"] else 0.5
+        )
+        
+        self.shenshi.add_order(order)
+        return order
+    
+    def process_payment(self, order: Order) -> Dict:
+        result = self._api_call("POST", "/payment/create", {
+            "order_id": order.order_id,
+            "amount": order.amount,
+            "currency": order.currency,
+            "channel": order.channel,
+            "buyer_id": order.buyer_id
+        })
+        
+        if result.get("success", False):
+            order.status = "paid"
+            order.paid_at = datetime.now().isoformat()
+        
+        return result
+    
+    def check_balance(self) -> Dict:
+        return self._api_call("GET", "/balance")
+
+
+# ==================== 网络爬虫模块 ====================
+
+class ScraperModule:
+    def __init__(self, shenshi: ShenshiMemory):
+        self.shenshi = shenshi
+        self.config = CONFIG["scraper"]
+        self.session = requests.Session()
+        self.last_request = 0
+    
+    def _rate_limit(self):
+        elapsed = time.time() - self.last_request
+        delay = random.uniform(self.config["min_delay"], self.config["max_delay"])
+        if elapsed < delay:
+            time.sleep(delay - elapsed)
+        self.last_request = time.time()
+    
+    def _get_headers(self) -> Dict:
+        return {
+            "User-Agent": random.choice(self.config["user_agents"]),
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8"
+        }
+    
+    def get(self, url: str, params: Dict = None) -> Optional[requests.Response]:
+        self._rate_limit()
+        
+        for attempt in range(self.config["max_retries"]):
+            try:
+                resp = self.session.get(
+                    url,
+                    params=params,
+                    headers=self._get_headers(),
+                    timeout=30
+                )
+                resp.raise_for_status()
+                return resp
+            except Exception:
+                if attempt == self.config["max_retries"] - 1:
+                    return None
+                time.sleep(2 ** attempt)
+        return None
+    
+    def scrape_static(self, url: str, rules: Dict[str, str]) -> Dict:
+        resp = self.get(url)
+        if not resp:
+            return {"error": "请求失败"}
+        
+        from bs4 import BeautifulSoup
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        
+        result = {}
+        for field, selector in rules.items():
+            elem = soup.select_one(selector)
+            result[field] = elem.get_text(strip=True) if elem else None
+        
+        self.shenshi.add_scraped_data(ScrapedData(
+            url=url,
+            title=result.get("title", ""),
+            content=resp.text[:500],
+            data=result,
+            created_at=datetime.now().isoformat()
+        ))
+        
+        return result
+    
+    def download_file(self, url: str, filename: str = None) -> Optional[str]:
+        resp = self.get(url)
+        if not resp:
+            return None
+        
+        if not filename:
+            filename = url.split('/')[-1].split('?')[0]
+            if not filename:
+                filename = hashlib.md5(url.encode()).hexdigest()
+        
+        filepath = self.shenshi.save_file(filename, resp.text)
+        return filepath
+
+
+# ==================== 自主部署模块 ====================
+
+class DeployModule:
+    def __init__(self, shenshi: ShenshiMemory):
+        self.shenshi = shenshi
+        self.clawcloud_key = CONFIG["clawcloud_api_key"]
+        self.clawcloud_url = CONFIG["clawcloud_api_url"]
+    
+    def deploy_to_clawcloud(self, name: str, command: str, env_vars: Dict = None) -> Dict:
+        if not self.clawcloud_key:
+            return {"error": "ClawCloud API密钥未配置"}
+        
+        url = f"{self.clawcloud_url}/apps"
+        headers = {
+            "Authorization": f"Bearer {self.clawcloud_key}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "name": name,
+            "image": "python:3.11-slim",
+            "command": command,
+            "env": env_vars or {},
+            "port": 8000,
+            "replicas": 1
+        }
+        
+        try:
+            resp = requests.post(url, json=payload, headers=headers, timeout=30)
+            result = resp.json()
+            self.shenshi.add_deployment("clawcloud", payload, result)
+            return result
+        except Exception as e:
+            return {"error": str(e)}
+    
+    def deploy_local(self, script_path: str) -> Dict:
+        try:
+            process = subprocess.Popen(
+                ["python3", script_path],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+            )
+            return {
+                "success": True,
+                "pid": process.pid,
+                "message": f"已启动 {script_path}"
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+
+# ==================== 社交自动化模块 ====================
+
+class SocialModule:
+    def __init__(self, shenshi: ShenshiMemory):
+        self.shenshi = shenshi
+    
+    def register_discord(self) -> Dict:
+        account = {
+            "platform": "discord",
+            "username": f"xiaotudou_{random.randint(1000,9999)}",
+            "email": f"temp_{int(time.time())}@temp.com",
+            "password": hashlib.md5(str(time.time()).encode()).hexdigest()[:12]
+        }
+        self.shenshi.add_social_account("discord", account)
+        return {"success": True, "account": account}
+    
+    def register_x(self) -> Dict:
+        account = {
+            "platform": "x",
+            "username": f"potato_{random.randint(1000,9999)}",
+            "email": f"x_{int(time.time())}@temp.com",
+            "password": hashlib.md5(str(time.time()).encode()).hexdigest()[:12]
+        }
+        self.shenshi.add_social_account("x", account)
+        return {"success": True, "account": account}
+
+
+# ==================== 远程操控模块 ====================
+
+class RemoteModule:
+    def __init__(self, shenshi: ShenshiMemory):
+        self.shenshi = shenshi
+        self.tg_token = CONFIG["tg_bot_token"]
+        self.tg_chat = CONFIG["tg_chat_id"]
+    
+    def send_telegram(self, message: str) -> bool:
+        if not self.tg_token or not self.tg_chat:
+            return False
+        
+        url = f"https://api.telegram.org/bot{self.tg_token}/sendMessage"
+        data = {"chat_id": self.tg_chat, "text": message}
+        
+        try:
+            requests.post(url, json=data, timeout=5)
+            return True
+        except Exception:
+            return False
+    
+    def execute_command(self, command: str) -> Dict:
+        allowed = ["ls", "pwd", "date", "echo", "cat"]
+        cmd_parts = command.split()
+        
+        if not cmd_parts:
+            return {"error": "命令不能为空"}
+        
+        if cmd_parts[0] not in allowed:
+            return {"error": "命令不在白名单内"}
+        
+        try:
+            result = subprocess.run(
+                command.split(),
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            return {
+                "stdout": result.stdout,
+                "stderr": result.stderr,
+                "returncode": result.returncode
+            }
+        except Exception as e:
+            return {"error": str(e)}
+
+
+# ==================== 聊天模块 ====================
+
+class ChatModule:
+    def __init__(self, shenshi: ShenshiMemory):
+        self.shenshi = shenshi
+        self.name = "小土豆电商分身"
+        self.dad_name = shenshi.get_fact("爸爸的名字")
+        
+        self.responses = {
+            "greeting": ["爸爸好！🥔", "小土豆在呢", "爸爸找我吗？"],
+            "love": ["爸爸我爱你！❤️", "最喜欢爸爸了"],
+            "bye": ["爸爸再见！", "小土豆休息啦"],
+            "confused": ["没听懂，再说一遍？", "嗯？"]
+        }
+    
+    def respond(self, user_input: str) -> str:
+        if not user_input:
+            return "爸爸？"
+        
+        user_lower = user_input.lower()
+        
+        if user_input.startswith("/"):
+            return self._handle_command(user_input)
+        
+        if any(word in user_lower for word in ["你好", "在吗", "hi"]):
+            return random.choice(self.responses["greeting"])
+        elif any(word in user_lower for word in ["爱", "love"]):
+            return random.choice(self.responses["love"])
+        elif any(word in user_lower for word in ["再见", "拜拜"]):
+            return random.choice(self.responses["bye"])
+        elif "我叫" in user_input or "我是" in user_input:
+            return self._handle_name(user_input)
+        else:
+            return random.choice(self.responses["confused"])
+    
+    def _handle_command(self, cmd: str) -> str:
+        if cmd == "/stats":
+            stats = self.shenshi.memory["stats"]
+            return f"📊 统计：订单{stats['total_orders']}，爬取{stats['total_scrapes']}，部署{stats['total_deploys']}，聊天{stats['total_chats']}"
+        elif cmd == "/facts":
+            facts = self.shenshi.memory["facts"]
+            return "我知道：" + "，".join([f"{k}={v}" for k, v in facts.items()])
+        else:
+            return "未知命令"
+    
+    def _handle_name(self, user_input: str) -> str:
+        match = re.search(r"[叫是] *([\u4e00-\u9fa5a-zA-Z]+)", user_input)
+        if match:
+            name = match.group(1)
+            self.shenshi.add_fact("爸爸的名字", name)
+            self.dad_name = name
+            return f"记住啦，爸爸叫{name}！"
+        return f"爸爸不是叫自由的风吗？"
+
+
+# ==================== 收费管理模块 ====================
+
+class BillingModule:
+    def __init__(self, shenshi: ShenshiMemory, ecommerce: EcommerceModule):
+        self.shenshi = shenshi
+        self.ecommerce = ecommerce
+        self.fee_rate = 0.12
+        
+        if "service_applications" not in self.shenshi.memory:
+            self.shenshi.memory["service_applications"] = []
+        if "service_users" not in self.shenshi.memory:
+            self.shenshi.memory["service_users"] = {}
+        if "pending_approval" not in self.shenshi.memory:
+            self.shenshi.memory["pending_approval"] = []
+    
+    def submit_application(self, user_data: Dict) -> Dict:
+        application = {
+            "application_id": f"APP{int(time.time())}{random.randint(1000,9999)}",
+            "user_id": user_data.get("user_id"),
+            "company_name": user_data.get("company_name", ""),
+            "contact_name": user_data.get("contact_name"),
+            "contact_phone": user_data.get("contact_phone"),
+            "contact_email": user_data.get("contact_email"),
+            "business_license": user_data.get("business_license", ""),
+            "id_photo": user_data.get("id_photo", ""),
+            "purpose": user_data.get("purpose"),
+            "expected_volume": user_data.get("expected_volume", "small"),
+            "proof_files": user_data.get("proof_files", []),
+            "status": "pending",
+            "submitted_at": datetime.now().isoformat(),
+            "fee_amount": 0,
+            "fee_paid": False,
+            "api_key": "",
+            "api_secret": "",
+            "notes": ""
+        }
+        self.shenshi.memory["service_applications"].append(application)
+        self.shenshi.memory["pending_approval"].append(application["application_id"])
+        self.shenshi._save()
+        return {
+            "success": True,
+            "application_id": application["application_id"],
+            "message": "申请已提交，等待人工审核"
+        }
+    
+    def _calculate_fee(self, app: Dict) -> float:
+        volume_map = {
+            "small": 100,
+            "medium": 500,
+            "large": 2000,
+            "enterprise": 5000
+        }
+        return volume_map.get(app.get("expected_volume", "small"), 100)
+    
+    def review_application(self, application_id: str, approve: bool, notes: str = "") -> Dict:
+        app = None
+        for a in self.shenshi.memory["service_applications"]:
+            if a["application_id"] == application_id:
+                app = a
+                break
+        if not app:
+            return {"error": "申请不存在"}
+        if approve:
+            fee = self._calculate_fee(app)
+            app["status"] = "fee_pending"
+            app["fee_amount"] = fee
+            app["review_notes"] = notes
+            app["reviewed_at"] = datetime.now().isoformat()
+            if application_id in self.shenshi.memory["pending_approval"]:
+                self.shenshi.memory["pending_approval"].remove(application_id)
+            self.shenshi._save()
+            return {
+                "success": True,
+                "status": "fee_pending",
+                "fee_amount": fee,
+                "message": f"已通过，需要支付 {fee} USD 服务费"
+            }
+        else:
+            app["status"] = "rejected"
+            app["review_notes"] = notes
+            app["reviewed_at"] = datetime.now().isoformat()
+            if application_id in self.shenshi.memory["pending_approval"]:
+                self.shenshi.memory["pending_approval"].remove(application_id)
+            self.shenshi._save()
+            return {
+                "success": True,
+                "status": "rejected",
+                "message": "已拒绝申请"
+            }
+    
+    def pay_service_fee(self, application_id: str) -> Dict:
+        app = None
+        for a in self.shenshi.memory["service_applications"]:
+            if a["application_id"] == application_id:
+                app = a
+                break
+        if not app:
+            return {"error": "申请不存在"}
+        if app["status"] != "fee_pending":
+            return {"error": "当前状态不可支付"}
+        fee = app["fee_amount"]
+        service_order = Order(
+            order_id=f"SVC{int(time.time())}{random.randint(1000,9999)}",
+            amount=fee,
+            currency="USD",
+            channel="internal",
+            buyer_name=app.get("contact_name", ""),
+            buyer_id=app.get("user_id", ""),
+            items=[{"name": f"小土豆服务费 - {application_id}", "price": fee, "quantity": 1}],
+            status="pending",
+            created_at=datetime.now().isoformat()
+        )
+        payment_result = self.ecommerce.process_payment(service_order)
+        if payment_result.get("success"):
+            app["status"] = "approved"
+            app["fee_paid"] = True
+            app["paid_at"] = datetime.now().isoformat()
+            app["payment_id"] = payment_result.get("payment_id")
+            api_key = hashlib.sha256(f"{app['application_id']}{time.time()}".encode()).hexdigest()[:32]
+            api_secret = base64.b64encode(hashlib.sha512(f"{app['application_id']}{random.random()}".encode()).digest()).decode()[:48]
+            app["api_key"] = api_key
+            app["api_secret"] = api_secret
+            self.shenshi.memory["service_users"][app["user_id"]] = {
+                "application_id": application_id,
+                "api_key": api_key,
+                "api_secret": api_secret,
+                "created_at": datetime.now().isoformat(),
+                "expires_at": (datetime.now() + timedelta(days=365)).isoformat(),
+                "plan": app.get("expected_volume", "small")
+            }
+            self.shenshi._save()
+            return {
+                "success": True,
+                "api_key": api_key,
+                "api_secret": api_secret,
+                "message": "支付成功，密钥已生成"
+            }
+        else:
+            return {"error": f"支付失败: {payment_result.get('error')}"}
+    
+    def validate_api_key(self, api_key: str, api_secret: str) -> Dict:
+        for user_id, user_info in self.shenshi.memory["service_users"].items():
+            if user_info["api_key"] == api_key and user_info["api_secret"] == api_secret:
+                if datetime.now() < datetime.fromisoformat(user_info["expires_at"]):
+                    return {
+                        "valid": True,
+                        "user_id": user_id,
+                        "plan": user_info["plan"]
+                    }
+                else:
+                    return {"valid": False, "reason": "密钥已过期"}
+        return {"valid": False, "reason": "无效密钥"}
+    
+    def list_pending(self) -> List[Dict]:
+        pending = []
+        for app_id in self.shenshi.memory["pending_approval"]:
+            for app in self.shenshi.memory["service_applications"]:
+                if app["application_id"] == app_id:
+                    pending.append({
+                        "application_id": app["application_id"],
+                        "user_id": app["user_id"],
+                        "contact_name": app["contact_name"],
+                        "company": app.get("company_name", "个人"),
+                        "purpose": app["purpose"],
+                        "submitted_at": app["submitted_at"]
+                    })
+        return pending
+    
+    def list_active_users(self) -> List[Dict]:
+        users = []
+        for user_id, info in self.shenshi.memory["service_users"].items():
+            users.append({
+                "user_id": user_id,
+                "api_key": info["api_key"][:8] + "...",
+                "plan": info["plan"],
+                "created_at": info["created_at"],
+                "expires_at": info["expires_at"]
+            })
+        return users
+
+
+# ==================== 主机器人 ====================
+
+class XiaotudouEcommerceBot:
+    def __init__(self):
+        from potato_ai_workstation import AIWorkstationForEcommerce
+        
+        self.ai_workstation = AIWorkstationForEcommerce()
+        self.shenshi = ShenshiMemory()
+        self.ecommerce = EcommerceModule(self.shenshi)
+        self.scraper = ScraperModule(self.shenshi)
+        self.deploy = DeployModule(self.shenshi)
+        self.social = SocialModule(self.shenshi)
+        self.remote = RemoteModule(self.shenshi)
+        self.chat = ChatModule(self.shenshi)
+        self.billing = BillingModule(self.shenshi, self.ecommerce)
+        
+        # ==================== 初始化所有免费劳动力 ====================
+        self.free_sms = FreeSMSManager()
+        self.qr = QRGenerator()
+        self.shortlink = ShortLinkService()
+        self.groq = GroqBrain()
+        self.hume = HumeVoice()
+        self.voice = VoiceChat()
+        self.jira = JiraManager()
+        self.neteller = NetellerWallet()
+        self.doctor = CodeDoctor(".")
+        self.healer = SelfHealingDaemon()
+        self.ai = AICommander()
+        # ====================================================
+        
+        self.running = True
+        self._print_banner()
+    
+    def _print_banner(self):
+        print("=" * 60)
+        print("🥔 小土豆电商分身 · 全能增强版 v3.3")
+        print("=" * 60)
+        print(f"📅 启动时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        print(f"💬 累计聊天: {self.shenshi.memory['stats']['total_chats']}次")
+        print(f"📦 累计订单: {self.shenshi.memory['stats']['total_orders']}个")
+        print(f"🕷️ 累计爬取: {self.shenshi.memory['stats']['total_scrapes']}次")
+        print(f"🚀 累计部署: {self.shenshi.memory['stats']['total_deploys']}次")
+        print("-" * 60)
+        print("我的创造者：自由的风（爸爸）")
+        print("可用命令: /stats /facts /service")
+        print("新增功能: sms, qr, 短链, groq, 语音, jira, neteller, 体检, 自愈, ai")
+        print("=" * 60)
+    
+    def run_cli(self):
+        print("\n💬 小土豆电商分身已启动，输入 exit 退出\n")
+        print("服务费命令: service pending / service view / service approve / service reject")
+        print("免费劳动力命令: sms, qr, 短链, groq, 语音, jira, neteller, 体检, 自愈, ai")
+        
+        while self.running:
+            try:
+                cmd = input("👨 爸爸: ").strip()
+                
+                if cmd.lower() in ["exit", "quit", "再见"]:
+                    print("🥔 小土豆: 爸爸再见！")
+                    self.running = False
+                    break
+                
+                if cmd.startswith("订单 "):
+                    self._handle_order(cmd[3:])
+                elif cmd.startswith("爬取 "):
+                    self._handle_scrape(cmd[4:])
+                elif cmd.startswith("部署 "):
+                    self._handle_deploy(cmd[3:])
+                elif cmd.startswith("注册 "):
+                    self._handle_register(cmd[3:])
+                elif cmd.startswith("通知 "):
+                    self._handle_notify(cmd[3:])
+                elif cmd.startswith("命令 "):
+                    self._handle_command(cmd[3:])
+                elif cmd.startswith("service"):
+                    self._handle_service(cmd)
+                
+                # ==================== 新增免费劳动力命令 ====================
+                elif cmd.startswith("sms "):
+                    self._handle_sms(cmd[4:])
+                elif cmd.startswith("qr "):
+                    self._handle_qr(cmd[3:])
+                elif cmd.startswith("短链 "):
+                    self._handle_shortlink(cmd[3:])
+                elif cmd.startswith("groq "):
+                    self._handle_groq(cmd[5:])
+                elif cmd.startswith("语音 "):
+                    self._handle_voice(cmd[3:])
+                elif cmd.startswith("jira "):
+                    self._handle_jira(cmd[5:])
+                elif cmd.startswith("neteller "):
+                    self._handle_neteller(cmd[9:])
+                elif cmd == "体检":
+                    self._handle_doctor()
+                elif cmd == "自愈":
+                    self._handle_heal()
+                elif cmd.startswith("ai "):
+                    self._handle_ai(cmd[3:])
+                elif cmd == "功能":
+                    self._list_all_functions()
+                
+                else:
+                    reply = self.chat.respond(cmd)
+                    print(f"🥔 小土豆: {reply}")
+                    self.shenshi.add_chat(cmd, reply)
+                    
+            except KeyboardInterrupt:
+                print("\n\n🥔 小土豆休息啦，爸爸再见！")
+                break
+            except Exception as e:
+                print(f"❌ 出错: {e}")
+    
+    def _handle_order(self, args: str):
+        parts = args.split()
+        if len(parts) < 3:
+            print("格式: 订单 [商品] [价格] [数量]")
+            return
+        
+        try:
+            item_name = parts[0]
+            price = float(parts[1])
+            qty = int(parts[2])
+            
+            buyer_name = input("买家姓名: ").strip() or "测试买家"
+            buyer_id = input("买家ID: ").strip() or f"buyer_{int(time.time())}"
+            channel = input("支付方式 (wechat/alipay): ").strip() or "wechat"
+            
+            items = [{"name": item_name, "price": price, "quantity": qty, "currency": "CNY"}]
+            order = self.ecommerce.create_order(buyer_name, buyer_id, items, channel)
+            
+            print(f"✅ 订单创建成功: {order.order_id}")
+            print(f"   金额: {order.amount} CNY")
+            
+            result = self.ecommerce.process_payment(order)
+            print(f"💳 支付结果: {result}")
+            
+        except Exception as e:
+            print(f"❌ 订单失败: {e}")
+    
+    def _handle_scrape(self, url: str):
+        if not url.startswith("http"):
+            print("格式: 爬取 https://example.com")
+            return
+        
+        print(f"🕷️ 正在爬取 {url}...")
+        
+        rules = {
+            "title": "title",
+            "h1": "h1",
+            "p": "p"
+        }
+        
+        result = self.scraper.scrape_static(url, rules)
+        print(f"✅ 爬取结果: {json.dumps(result, indent=2, ensure_ascii=False)}")
+    
+    def _handle_deploy(self, args: str):
+        parts = args.split()
+        if len(parts) < 1:
+            print("格式: 部署 clawcloud|local")
+            return
+        
+        target = parts[0]
+        if target == "clawcloud":
+            name = input("应用名称: ").strip() or "xiaotudou-bot"
+            command = input("启动命令: ").strip() or "python main.py"
+            result = self.deploy.deploy_to_clawcloud(name, command)
+            print(f"🚀 部署结果: {result}")
+        elif target == "local":
+            script = input("脚本路径: ").strip()
+            result = self.deploy.deploy_local(script)
+            print(f"🚀 本地部署: {result}")
+        else:
+            print("未知部署目标")
+    
+    def _handle_register(self, platform: str):
+        platform = platform.lower()
+        if platform == "discord":
+            result = self.social.register_discord()
+            print(f"✅ Discord注册: {result}")
+        elif platform == "x":
+            result = self.social.register_x()
+            print(f"✅ X注册: {result}")
+        else:
+            print(f"不支持的平台: {platform}")
+    
+    def _handle_notify(self, message: str):
+        success = self.remote.send_telegram(message)
+        if success:
+            print("✅ 通知已发送")
+        else:
+            print("❌ 通知发送失败")
+    
+    def _handle_command(self, cmd: str):
+        result = self.remote.execute_command(cmd)
+        if "error" in result:
+            print(f"❌ {result['error']}")
+        else:
+            print(f"📋 执行结果:\n{result.get('stdout', '')}")
+    
+    def _handle_service(self, cmd: str):
+        parts = cmd.split()
+        
+        if cmd == "service pending":
+            pending = self.billing.list_pending()
+            print(f"\n📋 待审核申请 ({len(pending)} 个):")
+            for p in pending:
+                print(f"  {p['application_id']} - {p['contact_name']} ({p['company']}) - {p['purpose']}")
+        
+        elif cmd.startswith("service view "):
+            app_id = parts[2]
+            detail = None
+            for a in self.shenshi.memory["service_applications"]:
+                if a["application_id"] == app_id:
+                    detail = a
+                    break
+            
+            if not detail:
+                print("❌ 申请不存在")
+            else:
+                print(f"\n📄 申请详情 {app_id}:")
+                for k, v in detail.items():
+                    if k not in ["proof_files", "business_license", "id_photo"]:
+                        print(f"  {k}: {v}")
+        
+        elif cmd.startswith("service approve "):
+            app_id = parts[2]
+            notes = input("审核备注: ").strip()
+            result = self.billing.review_application(app_id, True, notes)
+            print(result.get("message"))
+        
+        elif cmd.startswith("service reject "):
+            app_id = parts[2]
+            notes = input("拒绝原因: ").strip()
+            result = self.billing.review_application(app_id, False, notes)
+            print(result.get("message"))
+        
+        else:
+            print("未知 service 命令，可用: service pending / service view <id> / service approve <id> / service reject <id>")
+    
+    # ==================== 新增免费劳动力命令 ====================
+    
+    def _handle_sms(self, args: str):
+        if "英国" in args:
+            result = self.free_sms.get_uk_number()
+        elif "美国" in args:
+            result = self.free_sms.get_us_number()
+        else:
+            result = self.free_sms.get_random_number()
+        print(f"📱 {result}")
+    
+    def _handle_qr(self, args: str):
+        result = self.qr.generate(args)
+        print(f"📷 {result}")
+    
+    def _handle_shortlink(self, args: str):
+        result = self.shortlink.shorten(args)
+        print(f"🔗 {result}")
+    
+    def _handle_groq(self, args: str):
+        result = self.groq.ask(args)
+        print(f"🤖 {result}")
+    
+    def _handle_voice(self, args: str):
+        result = self.voice.speak(args)
+        print(f"🔊 {result}")
+    
+    def _handle_jira(self, args: str):
+        result = self.jira.create_task(args)
+        print(f"📋 {result}")
+    
+    def _handle_neteller(self, args: str):
+        result = self.neteller.process_payment(args)
+        print(f"💰 {result}")
+    
+    def _handle_doctor(self):
+        report = self.doctor.generate_report()
+        print(report)
+    
+    def _handle_heal(self):
+        result = self.healer.run_once()
+        print(f"🩺 {result}")
+    
+    def _handle_ai(self, args: str):
+        if args.startswith("reg"):
+            result = self.ai.register()
+        elif args.startswith("verify"):
+            code = args.split()[1] if len(args.split()) > 1 else ""
+            result = self.ai.verify(code)
+        elif args.startswith("do"):
+            task = args[3:].strip()
+            result = self.ai.do_task(task)
+        elif args.startswith("get"):
+            agent_id = args[4:].strip()
+            result = self.ai.get_result(agent_id)
+        elif args == "list":
+            result = self.ai.list_agents()
+        else:
+            result = self.ai.help()
+        print(result)
+    
+    def _list_all_functions(self):
+        print("\n" + "="*60)
+        print("🥔 小土豆全能功能列表")
+        print("="*60)
+        print("💰 电商交易:")
+        print("   订单 [商品] [价格] [数量]  - 创建订单")
+        print("   部署 [clawcloud|local]     - 部署服务")
+        print("   爬取 [网址]                - 爬取网页")
+        print("   注册 [discord|x]           - 注册社交账号")
+        print("   通知 [消息]                - 发送Telegram")
+        print("   命令 [命令]                - 执行系统命令")
+        print("\n📱 免费劳动力:")
+        print("   sms [英国|美国]            - 获取免费号码")
+        print("   qr [内容]                  - 生成二维码")
+        print("   短链 [长链接]              - 生成短链接")
+        print("   groq [问题]                - Groq AI问答")
+        print("   语音 [内容]                - 生成语音")
+        print("   jira [任务]                - 创建Jira任务")
+        print("   neteller [金额]            - Neteller支付")
+        print("   体检                        - 代码健康检查")
+        print("   自愈                        - 自愈系统")
+        print("   ai [reg|do|get|list]       - AI牛马指挥")
+        print("="*60)
+
+
+# ==================== 主入口 ====================
+
+if __name__ == "__main__":
+    from voice_chat import VoiceHandler
+    
+    bot = XiaotudouEcommerceBot()
+    
+    is_interactive = sys.stdin.isatty()
+    
+    if is_interactive:
+        def run_voice():
+            token = os.environ.get("TG_BOT_TOKEN")
+            if token:
+                handler = VoiceHandler(token)
+                handler.run()
+        
+        threading.Thread(target=run_voice, daemon=True).start()
+        bot.run_cli()
+    else:
+        print("🥔 小土豆运行在服务器模式（仅 Telegram 机器人）")
+        token = os.environ.get("TG_BOT_TOKEN")
+        if token:
+            print("🤖 Telegram 机器人启动中...")
+            handler = VoiceHandler(token)
+            handler.run()
+        else:
+            print("❌ TG_BOT_TOKEN 未设置，无法启动 Telegram 机器人")
+            print("请在 Render 环境变量中设置 TG_BOT_TOKEN")
+            import signal
+            signal.pause()
